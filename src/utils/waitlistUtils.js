@@ -197,8 +197,7 @@ export const joinWaitlist = async (eventId, user, registrationForm = {}) => {
   // Notify user they joined
   await addLocalNotification(
     "Waitlist Joined",
-    `You have successfully joined the waitlist for ${registrationForm.eventTitle || "the event"
-    }.`
+    `You have successfully joined the waitlist for ${registrationForm.eventTitle || "the event"}.`
   );
 
   return newEntry;
@@ -253,8 +252,7 @@ export const promoteRecord = async (record, event) => {
     // 3. Dispatch promotion notification
     await addLocalNotification(
       "Waitlist Promotion",
-      `Good news! You have been promoted from the waitlist to a confirmed attendee for: ${event.title || "your event"
-      }.`
+      `Good news! You have been promoted from the waitlist to a confirmed attendee for: ${event.title || "your event"}.`
     );
     return true;
   }
