@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { toast } from "react-toastify";
-import { API_ENDPOINTS } from "../config/api";
+import { API_ENDPOINTS, apiUtils } from "../config/api";
 import { eventService } from "../services/eventService";
 import { useFormSubmit } from "./useFormSubmit";
 import {
@@ -14,6 +14,7 @@ import { sanitizeHtml } from "../utils/sanitizeHtml";
 import { logger } from "../utils/logger";
 import { useAuth } from "../context/AuthContext";
 import { safeJsonParse } from "../utils/safeJsonParse";
+import { getOrMigrateKey } from "../utils/storageKeyManager";
 
 // 🎯 Constants for better maintainability
 const MAX_CAPACITY = 100000;
@@ -263,7 +264,21 @@ const DEBOUNCE_DELAY = 1000;
  */
 export const useEventForm = () => {
   const { user } = useAuth();
-  const scopedDraftKey = `${DRAFT_KEY}_${user?.id || "guest"}`;
+  const [scopedDraftKey, setScopedDraftKey] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    const legacyKey = `${DRAFT_KEY}_${user?.id || "guest"}`;
+    getOrMigrateKey(DRAFT_KEY, user?.id || "guest", legacyKey).then((key) => {
+      if (active) {
+        setScopedDraftKey(key);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
+
   // 📊 State Management
   const [formData, setFormData] = useState(initialFormData);
   const [errors, setErrors] = useState({});
@@ -297,7 +312,7 @@ export const useEventForm = () => {
       return { id: "mock-event-id", success: true };
     }
 
-    const response = await eventService.createEvent(sanitized);
+    const response = await apiUtils.post(API_ENDPOINTS.EVENTS.CREATE, sanitized);
     const result = response.data;
 
     if (!(response.status === 200 && result?.success)) {
@@ -310,6 +325,7 @@ export const useEventForm = () => {
 
   // 🗄️ Draft Management
   useEffect(() => {
+    if (!scopedDraftKey) return;
     const checkForDraft = () => {
       try {
         const saved = localStorage.getItem(scopedDraftKey);
@@ -329,7 +345,7 @@ export const useEventForm = () => {
 
   // 💾 Debounced Draft Saving
   useEffect(() => {
-    if (!isDraftLoaded) return;
+    if (!scopedDraftKey || !isDraftLoaded) return;
 
     if (saveDraftTimeoutRef.current) {
       clearTimeout(saveDraftTimeoutRef.current);
@@ -429,7 +445,9 @@ export const useEventForm = () => {
   const resetForm = useCallback(() => {
     setFormData(initialFormData);
     setErrors({});
-    localStorage.removeItem(scopedDraftKey);
+    if (scopedDraftKey) {
+      localStorage.removeItem(scopedDraftKey);
+    }
   }, [scopedDraftKey]);
 
   const handleInputChange = useCallback((e) => {
@@ -532,6 +550,7 @@ export const useEventForm = () => {
   }, []);
 
   const handleRestoreDraft = useCallback(() => {
+    if (!scopedDraftKey) return;
     try {
       const saved = localStorage.getItem(scopedDraftKey);
       if (saved) {
@@ -546,7 +565,9 @@ export const useEventForm = () => {
   }, [scopedDraftKey]);
 
   const handleDiscardDraft = useCallback(() => {
-    localStorage.removeItem(scopedDraftKey);
+    if (scopedDraftKey) {
+      localStorage.removeItem(scopedDraftKey);
+    }
     setShowRestoreModal(false);
   }, [scopedDraftKey]);
 

@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useMemo } from "react";
 import { calculateRecommendationScore } from "../utils/recommendationEngine";
+import { getUserProfile } from "../utils/userProfileAnalyzer";
 
 const USER_PROFILE_KEY = "eventra_user_profile";
 const PROFILE_UPDATED_EVENT = "userProfileUpdated";
@@ -48,7 +49,11 @@ const useRecommendations = (events = []) => {
     };
   }, []);
 
-  const userProfile = useMemo(() => parseProfile(profileKey), [profileKey]);
+  const userProfile = useMemo(() => {
+    const fallbackProfile = typeof getUserProfile === "function" ? getUserProfile() : {};
+    const currentProfile = parseProfile(profileKey);
+    return { ...fallbackProfile, ...currentProfile };
+  }, [profileKey]);
 
   const recommendations = useMemo(() => {
     if (!Array.isArray(events)) return [];

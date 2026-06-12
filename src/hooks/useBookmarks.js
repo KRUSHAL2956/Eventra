@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { safeJsonParse } from "../utils/safeJsonParse";
+import { getOrMigrateKey } from "../utils/storageKeyManager";
 
 // Simple synchronous hash to avoid exposing raw userId (email) in localStorage keys.
 const hashUserId = (userId) => {
@@ -28,13 +29,6 @@ const hashUserId = (userId) => {
  *   toggleBookmark: (event: Object) => void,
  *   isBookmarked: (id: string|number) => boolean
  * }}
- *
- * @example
- * const { bookmarks, toggleBookmark, isBookmarked } = useBookmarks(user.id);
- * // Check if bookmarked
- * if (isBookmarked(event.id)) { ... }
- * // Toggle bookmark
- * toggleBookmark(event);
  */
 
 // ---------------------------------------------------------------------------
@@ -54,52 +48,49 @@ const toBookmarkEntry = (event) => ({
 });
 
 const useBookmarks = (userId = "guest") => {
-  const storageKey = `bookmarks_${hashUserId(userId)}`;
-
-  const [bookmarks, setBookmarks] = useState(() => {
-    try {
-      const stored = localStorage.getItem(storageKey);
-      if (!stored) return [];
-//       return JSON.parse(stored) || [];
-      const parsed = safeJsonParse(stored, {});
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  });
-
-  const storageKeyRef = useRef(storageKey);
-  storageKeyRef.current = storageKey;
-
-  const isInitialSave = useRef(true);
-  const isInitialLoad = useRef(true);
+  const [bookmarks, setBookmarks] = useState([]);
+  const [storageKey, setStorageKey] = useState(null);
+  const hasLoaded = useRef(false);
 
   useEffect(() => {
-    if (isInitialSave.current) {
-      isInitialSave.current = false;
-      return;
-    }
-    try {
-      localStorage.setItem(storageKeyRef.current, JSON.stringify(bookmarks));
-    } catch {
-      // localStorage full — fail silently; in-memory state remains correct
-    }
-  }, [bookmarks]);
+    let active = true;
+    const legacyKey = `bookmarks_${hashUserId(userId)}`;
+    getOrMigrateKey("bookmarks", userId, legacyKey).then((key) => {
+      if (active) {
+        setStorageKey(key);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [userId]);
 
+  // Load from storage when storageKey resolves
   useEffect(() => {
-    if (isInitialLoad.current) {
-      isInitialLoad.current = false;
-      return;
-    }
+    if (!storageKey) return;
     try {
       const stored = localStorage.getItem(storageKey);
-      if (!stored) { setBookmarks([]); return; }
-      const parsed = safeJsonParse(stored, {});
-      setBookmarks(Array.isArray(parsed) ? parsed : []);
+      if (!stored) {
+        setBookmarks([]);
+      } else {
+        const parsed = safeJsonParse(stored, {});
+        setBookmarks(Array.isArray(parsed) ? parsed : []);
+      }
     } catch {
       setBookmarks([]);
     }
+    hasLoaded.current = true;
   }, [storageKey]);
+
+  // Save to storage when bookmarks change
+  useEffect(() => {
+    if (!storageKey || !hasLoaded.current) return;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(bookmarks));
+    } catch {
+      // localStorage full — fail silently; in-memory state remains correct
+    }
+  }, [bookmarks, storageKey]);
 
   // Cache bookmarks in a Set for O(1) lookups
   const bookmarksSet = useMemo(() => {
@@ -108,12 +99,6 @@ const useBookmarks = (userId = "guest") => {
 
   /**
    * Toggles bookmark state for an event.
-   *
-   * - If already bookmarked, removes the entry.
-   * - If not, adds a minimal (non-full-object) entry.
-   * - If adding would exceed MAX_BOOKMARKS, the oldest entry is dropped.
-   *
-   * Wrapped in useCallback so the reference is stable across renders.
    */
   const toggleBookmark = useCallback((event) => {
     if (!event?.id) return;
@@ -132,7 +117,6 @@ const useBookmarks = (userId = "guest") => {
         return withNew;
       }
 
-      // Cap exceeded: drop oldest entry (smallest savedAt) to stay within limit
       const sorted = [...withNew].sort((a, b) => (a.savedAt ?? 0) - (b.savedAt ?? 0));
       sorted.shift();
       return sorted;

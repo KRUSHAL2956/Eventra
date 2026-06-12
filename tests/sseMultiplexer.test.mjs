@@ -1,3 +1,6 @@
+process.env.REACT_APP_API_URL = "https://api.example.test";
+process.env.VITE_API_URL = "https://api.example.test";
+
 import assert from "node:assert/strict";
 
 // Mock environment and globals before importing sseMultiplexer
@@ -88,15 +91,18 @@ class MockEventSource {
 }
 globalThis.EventSource = MockEventSource;
 
-// Now import the multiplexer
-import { sseMultiplexer } from "../src/utils/sseMultiplexer.js";
-
-// Force mock sseMultiplexer state to be the leader for initial tests
-sseMultiplexer.isLeader = true;
-sseMultiplexer.reconcileConnections();
+let sseMultiplexer;
 
 const runTests = async () => {
   process.env.REACT_APP_API_URL = "https://api.example.test";
+  process.env.VITE_API_URL = "https://api.example.test";
+
+  const module = await import("../src/utils/sseMultiplexer.js");
+  sseMultiplexer = module.sseMultiplexer;
+
+  // Force mock sseMultiplexer state to be the leader for initial tests
+  sseMultiplexer.isLeader = true;
+  sseMultiplexer.reconcileConnections();
 
   // Test 1: Local subscription and message delivery
   let receivedData = null;

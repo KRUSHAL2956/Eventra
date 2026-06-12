@@ -121,6 +121,8 @@ globalThis.mockSetQueue = async (q) => {
 globalThis.mockClearQueue = async () => {
   currentQueue = [];
 };
+globalThis.mockFilterQueueByOwnership = (q) => q;
+globalThis.mockValidateQueueSession = (q) => q;
 
 let fetchCalls = [];
 globalThis.mockFetchWithTimeout = async (url, options) => {

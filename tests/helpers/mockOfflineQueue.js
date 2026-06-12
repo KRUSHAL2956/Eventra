@@ -23,3 +23,10 @@ export const filterQueueByOwnership = (queue, userId) => {
   }
   return queue.filter((item) => item.userId === userId);
 };
+
+export const validateQueueSession = (queue, sessionId) => {
+  if (globalThis.mockValidateQueueSession) {
+    return globalThis.mockValidateQueueSession(queue, sessionId);
+  }
+  return queue.filter((item) => item.sessionId === sessionId);
+};

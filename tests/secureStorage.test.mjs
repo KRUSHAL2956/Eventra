@@ -144,8 +144,8 @@ describe('syncSecureStorage', () => {
   });
 
   describe('setItem', () => {
-    it('returns true on successful write', () => {
-      const result = syncSecureStorage.setItem('testKey', 'testValue');
+    it('returns true on successful write', async () => {
+      const result = await syncSecureStorage.setItem('testKey', 'testValue');
       assert.strictEqual(result, true);
     });
 
@@ -156,16 +156,12 @@ describe('syncSecureStorage', () => {
       assert.notStrictEqual(raw, null);
     });
 
-    it('returns false when localStorage.setItem throws', () => {
+    it('returns false when localStorage.setItem throws', async () => {
       const original = mockStorage.setItem.bind(mockStorage);
       try {
         mockStorage.setItem = () => { throw new Error('QuotaExceededError'); };
-        const result = syncSecureStorage.setItem('k', 'v');
-        if (syncSecureStorage.isEncryptionActive()) {
-          assert.strictEqual(result, true);
-        } else {
-          assert.strictEqual(result, false);
-        }
+        const result = await syncSecureStorage.setItem('k', 'v');
+        assert.strictEqual(result, false);
       } finally {
         mockStorage.setItem = original;
       }
@@ -341,8 +337,8 @@ describe('syncSecureStorage edge cases', () => {
     await new Promise(resolve => setTimeout(resolve, 20));
   });
 
-  it('handles storing an empty string', () => {
-    const result = syncSecureStorage.setItem('empty', '');
+  it('handles storing an empty string', async () => {
+    const result = await syncSecureStorage.setItem('empty', '');
     assert.strictEqual(result, true);
   });
 
